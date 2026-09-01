@@ -17,5 +17,21 @@ class BookingRepository extends CrudRepository{
         const booking = await Booking.create(data, {transaction:transaction});
         return booking;
     }
+
+
+     async get(data , transaction){
+            const response=await this.model.findByPk(data, {transaction:transaction});
+            //console.log("hy")
+            if(!response) throw new AppError('There is no data corrresponding to given Id', StatusCodes.NOT_FOUND);
+            return response;
+      
+    }
+    
+    async update(id,data, transaction){// data will be an object which will row and column
+       
+            const response=await this.model.update(data,{where:{id:id}, transaction: transaction});
+            return response;
+        
+    }
 }
 module.exports = BookingRepository;
