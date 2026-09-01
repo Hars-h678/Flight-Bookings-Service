@@ -53,9 +53,14 @@ async function makePayment(data){
        const currentTime = new Date();
        if(currentTime - bookingTime > 300000 ){ //means 5 minutes
              console.log(CANCELLED);
-             await bookingRepository.update(data.bookingId , {status:CANCELLED}, transaction);
+           //  await bookingRepository.update(data.bookingId , {status:CANCELLED}, transaction);
+             //why my above status :CANCELLED is not updating in the database ? ans: bcz we are not committing the transaction so we need to commit the transaction after updating the status 
+             await cancelBooking({bookingId: data.bookingId, flightId: bookingDetail.flightId, noOfSeats: bookingDetail.noOfSeats});
              throw new AppError('Payment time expired',StatusCodes.BAD_REQUEST);
-       }
+             await transaction.commit();
+             // see if status is cancelled then we will commit it in cancelbooking right then it should commit and come back to this function and then we will throw the error and the transaction will be rolled back but the status will be cancelled in the database
+      // so according to you commit will alwyas in every situation will  throw error
+            }
 
         if(bookingDetail.totalCost !== data.totalCost){
             throw new AppError('Total cost is not correct',StatusCodes.BAD_REQUEST);
@@ -74,7 +79,30 @@ async function makePayment(data){
 
 }
 
+async function cancelBooking(data){
+  const transaction = await db.sequelize.transaction();
+  try{
+    const bookingDetail = await bookingRepository.get(data.bookingId, transaction)
+    console.log("booking detail", bookingDetail);
+    if(bookingDetail.status == CANCELLED){
+        await transaction.commit();
+        return;
+    }
+    const seats = bookingDetail.noOfSeats;
+    await axios.patch(`${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${bookingDetail.flightId}/seats`,{
+        seats: bookingDetail.noOfSeats,
+        dec:true
+       });
+    await bookingRepository.update(data.bookingId , {status:CANCELLED}, transaction);
+    await transaction.commit();
+  }catch(error){
+     await transaction.rollback();
+      throw error;
+  }
+}
+
 module.exports = {
     createBooking,
-    makePayment
+    makePayment,
+    cancelBooking
 };
